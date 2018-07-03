@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	ctx, cancelFn := context.WithCancel(context.Background())
+	ctx, cancelFn := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancelFn()
 	if err := run(ctx); err != nil {
 		log.Fatal(err)
@@ -27,7 +27,11 @@ const dataID = "tor-dht-poc-test"
 func run(ctx context.Context) error {
 	impl.ApplyDebugLogging()
 	log.Printf("Starting Tor")
-	bineTor, err := tor.Start(ctx, &tor.StartConf{NoHush: true, DebugWriter: os.Stdout})
+	bineTor, err := tor.Start(ctx, &tor.StartConf{
+		NoHush:      true,
+		DebugWriter: os.Stdout,
+		DataDir:     "data-dir-temp",
+	})
 	if err != nil {
 		return fmt.Errorf("Failed starting Tor: %v", err)
 	}
@@ -51,8 +55,8 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("Failed providing: %v", err)
 	}
 
-	log.Printf("Waiting 20 seconds")
-	time.Sleep(20 * time.Second)
+	log.Printf("Waiting 5 seconds")
+	time.Sleep(5 * time.Second)
 	return fmt.Errorf("TODO: the rest")
 }
 
