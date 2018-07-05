@@ -3,7 +3,9 @@ package ipfs
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
+	"time"
 
 	"github.com/cretz/bine/tor"
 	"github.com/cretz/bine/torutil"
@@ -72,7 +74,7 @@ func (t *torDHT) FindProviders(ctx context.Context, id []byte, maxCount int) ([]
 
 func (t *torDHT) debugf(format string, args ...interface{}) {
 	if t.debug {
-		fmt.Printf("[DEBUG] "+format+"\n", args...)
+		log.Printf("[DEBUG] "+format, args...)
 	}
 }
 
@@ -121,10 +123,16 @@ func (t *torDHT) connectPeers(ctx context.Context, peers []*tordht.PeerInfo, min
 	// Connect to a bunch asynchronously
 	peerConnCh := make(chan error, len(peers))
 	for _, peer := range peers {
+		// There may be an inexplicable race here so I sleep a tad
+		// TODO: investigate
+		time.Sleep(100 * time.Millisecond)
 		go func(peer *tordht.PeerInfo) {
-			if connErr := t.connectPeer(ctx, peer); connErr != nil {
-				peerConnCh <- fmt.Errorf("Peer connection to %v failed: %v", peer, connErr)
+			t.debugf("Attempting to connect to peer %v", peer)
+			if err := t.connectPeer(ctx, peer); err != nil {
+				t.debugf("Failed connecting to peer %v: %v", err)
+				peerConnCh <- fmt.Errorf("Peer connection to %v failed: %v", peer, err)
 			} else {
+				t.debugf("Successfully connected to peer %v", peer)
 				peerConnCh <- nil
 			}
 		}(peer)

@@ -13,7 +13,7 @@ import (
 
 // Change to true to see lots of logs
 const debug = false
-const participatingPeerCount = 3
+const participatingPeerCount = 5
 const dataID = "tor-dht-poc-test"
 
 var impl tordht.Impl = ipfs.Impl

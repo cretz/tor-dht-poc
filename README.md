@@ -16,4 +16,5 @@ Probably choosing IPFS here due to WebTorrent's requirement on WebRTC which Tor 
 
 **Results**
 
-Nothing yet, still in development
+* Go - SUCCESS!! See the [go-tor-dht-poc/](go-tor-dht-poc)'s README.md for details
+* JS - Nothing yet, still in development

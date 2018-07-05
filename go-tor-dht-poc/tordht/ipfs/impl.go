@@ -18,6 +18,8 @@ type impl struct{}
 
 var Impl tordht.Impl = impl{}
 
+const minPeersRequired = 2
+
 func (impl) ApplyDebugLogging() {
 	log.SetDebugLogging()
 	// log.SetAllLoggers(logging.INFO)
@@ -62,9 +64,9 @@ func (impl) NewDHT(ctx context.Context, conf *tordht.DHTConf) (tordht.DHT, error
 	t.debugf("Creating routed host")
 	t.ipfsHost = routed.Wrap(t.ipfsHost, t.ipfsDHT)
 
-	// Connect to at least 3 (or total count if fewer than 3)
+	// Connect to at least X (or total count if fewer than X)
 	if len(conf.BootstrapPeers) > 0 {
-		if err = t.connectPeers(ctx, conf.BootstrapPeers, 3); err != nil {
+		if err = t.connectPeers(ctx, conf.BootstrapPeers, minPeersRequired); err != nil {
 			return nil, fmt.Errorf("Failed connecting to peers: %v", err)
 		}
 	}
