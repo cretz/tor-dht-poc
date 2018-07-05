@@ -2,7 +2,7 @@ package tordht
 
 import (
 	"context"
-	"crypto"
+	"fmt"
 	"io"
 
 	"github.com/cretz/bine/tor"
@@ -10,16 +10,32 @@ import (
 
 type Impl interface {
 	ApplyDebugLogging()
-	NewDiscoverer(context.Context, *tor.Tor) (Discoverer, error)
-	NewProvider(context.Context, *tor.Tor) (Provider, error)
+	NewDHT(ctx context.Context, conf *DHTConf) (DHT, error)
 }
 
-type Discoverer interface {
-	io.Closer
-	Discover(context.Context, []byte) <-chan crypto.PublicKey
+type DHTConf struct {
+	Tor            *tor.Tor
+	BootstrapPeers []*PeerInfo
+	ClientOnly     bool
+	Verbose        bool
 }
 
-type Provider interface {
+type PeerInfo struct {
+	ID string
+	// May be empty string if not listening
+	OnionServiceID string
+	// May be 0 if not listening
+	OnionPort int
+}
+
+func (p *PeerInfo) String() string {
+	return fmt.Sprintf("ID %v, addr %v:%v", p.ID, p.OnionServiceID, p.OnionPort)
+}
+
+type DHT interface {
 	io.Closer
-	Provide(context.Context, []byte, crypto.PublicKey) error
+
+	PeerInfo() *PeerInfo
+	Provide(ctx context.Context, id []byte) error
+	FindProviders(ctx context.Context, id []byte, maxCount int) ([]*PeerInfo, error)
 }

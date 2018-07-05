@@ -37,7 +37,6 @@ var TorMultiaddrFormat = mafmt.Or(OnionMultiaddrFormat, mafmt.TCP)
 var _ transport.Transport = &TorTransport{}
 
 func NewTorTransport(bineTor *tor.Tor, conf *TorTransportConf) func(*upgrader.Upgrader) *TorTransport {
-
 	return func(upgrader *upgrader.Upgrader) *TorTransport {
 		bineTor.Debugf("Creating transport with upgrader: %v", upgrader)
 		if conf == nil {
@@ -121,34 +120,75 @@ func (t *TorTransport) Listen(laddr ma.Multiaddr) (transport.Listener, error) {
 	}()
 
 	// Return a listener
-	ret := &torListener{addr: onion}
-	var manetListen manet.Listener
-	if ret.multiaddr, err = ma.NewMultiaddr(fmt.Sprintf("/onion/%v:%v", onion.ID, onion.RemotePorts[0])); err != nil {
-		t.bineTor.Debugf("Failed creating onion service: %v", err)
-		return nil, err
-	} else if manetListen, err = manet.WrapNetListener(onion); err != nil {
-		t.bineTor.Debugf("Failed wrapping onion listener: %v", err)
+	manetListen := &manetListener{transport: t, onion: onion}
+	if manetListen.multiaddr, err = ma.NewMultiaddr(fmt.Sprintf("/onion/%v:%v", onion.ID, onion.RemotePorts[0])); err != nil {
+		t.bineTor.Debugf("Failed converting onion address: %v", err)
 		return nil, err
 	}
-	ret.underlying = t.upgrader.UpgradeListener(t, manetListen)
 	t.bineTor.Debugf("Completed creating IPFS listener from onion")
-	return ret, nil
+	return manetListen.Upgrade(t.upgrader), nil
+	// ret := &torListener{addr: onion}
+	// var manetListen manet.Listener
+	// if ret.multiaddr, err = ma.NewMultiaddr(fmt.Sprintf("/onion/%v:%v", onion.ID, onion.RemotePorts[0])); err != nil {
+	// 	t.bineTor.Debugf("Failed creating onion service: %v", err)
+	// 	return nil, err
+	// } else if manetListen, err = manet.WrapNetListener(onion); err != nil {
+	// 	t.bineTor.Debugf("Failed wrapping onion listener: %v", err)
+	// 	return nil, err
+	// }
+	// ret.underlying = t.upgrader.UpgradeListener(t, manetListen)
+	// t.bineTor.Debugf("Completed creating IPFS listener from onion")
+	// return ret, nil
 }
 
 func (t *TorTransport) Protocols() []int { return []int{ma.P_TCP, ma.P_ONION, ONION_LISTEN_PROTO_CODE} }
 func (t *TorTransport) Proxy() bool      { return true }
 
-type torConn struct {
-	conn net.Conn
+type manetListener struct {
+	transport *TorTransport
+	onion     *tor.OnionService
+	multiaddr ma.Multiaddr
 }
 
-type torListener struct {
-	addr       net.Addr
-	multiaddr  ma.Multiaddr
-	underlying transport.Listener
+func (m *manetListener) Accept() (manet.Conn, error) {
+	if c, err := m.onion.Accept(); err != nil {
+		return nil, err
+	} else {
+		ret := &manetConn{Conn: c, localMultiaddr: m.multiaddr}
+		if ret.remoteMultiaddr, err = manet.FromNetAddr(c.RemoteAddr()); err != nil {
+			return nil, err
+		}
+		return ret, nil
+	}
+}
+func (m *manetListener) Close() error            { return m.onion.Close() }
+func (m *manetListener) Addr() net.Addr          { return m.onion }
+func (m *manetListener) Multiaddr() ma.Multiaddr { return m.multiaddr }
+func (m *manetListener) Upgrade(u *upgrader.Upgrader) transport.Listener {
+	// ret := &torListener{
+	// 	addr: onion,
+	// 	multiaddr: m.multiaddr,
+	// 	underlying: u.UpgradeListener(m.transport, m),
+	// }
+	return u.UpgradeListener(m.transport, m)
 }
 
-func (t *torListener) Accept() (transport.Conn, error) { return t.underlying.Accept() }
-func (t *torListener) Close() error                    { return t.underlying.Close() }
-func (t *torListener) Addr() net.Addr                  { return t.addr }
-func (t *torListener) Multiaddr() ma.Multiaddr         { return t.multiaddr }
+type manetConn struct {
+	net.Conn
+	localMultiaddr  ma.Multiaddr
+	remoteMultiaddr ma.Multiaddr
+}
+
+func (m *manetConn) LocalMultiaddr() ma.Multiaddr  { return m.localMultiaddr }
+func (m *manetConn) RemoteMultiaddr() ma.Multiaddr { return m.remoteMultiaddr }
+
+// type transportListener struct {
+// 	addr       net.Addr
+// 	multiaddr  ma.Multiaddr
+// 	underlying transport.Listener
+// }
+
+// func (t *transportListener) Accept() (transport.Conn, error) { return t.underlying.Accept() }
+// func (t *transportListener) Close() error                    { return t.underlying.Close() }
+// func (t *transportListener) Addr() net.Addr                  { return t.addr }
+// func (t *transportListener) Multiaddr() ma.Multiaddr         { return t.multiaddr }

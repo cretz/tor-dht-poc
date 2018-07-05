@@ -17,7 +17,10 @@ const ONION_LISTEN_PROTO_CODE = 0x55
 
 var onionListenProto = ma.Protocol{
 	ONION_LISTEN_PROTO_CODE, 0, "onionListen", ma.CodeToVarint(ONION_LISTEN_PROTO_CODE), false, nil}
-var onionProto = ma.Protocol{ma.P_ONION, 96, "onion", ma.CodeToVarint(ma.P_ONION), false,
+
+// var onionProto = ma.Protocol{ma.P_ONION, 96, "onion", ma.CodeToVarint(ma.P_ONION), false,
+// 	ma.NewTranscoderFromFunctions(onionStringToBytes, onionBytesToString, nil)}
+var onionProto = ma.Protocol{ma.P_ONION, ma.LengthPrefixedVarSize, "onion", ma.CodeToVarint(ma.P_ONION), false,
 	ma.NewTranscoderFromFunctions(onionStringToBytes, onionBytesToString, nil)}
 
 func init() {

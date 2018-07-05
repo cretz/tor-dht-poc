@@ -2,62 +2,72 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 	"log"
 	"os"
 	"time"
 
 	"github.com/cretz/bine/tor"
-	"github.com/cretz/bine/torutil/ed25519"
 	"github.com/cretz/tor-dht-poc/go-tor-dht-poc/tordht"
 	"github.com/cretz/tor-dht-poc/go-tor-dht-poc/tordht/ipfs"
 )
 
+const dataID = "tor-dht-poc-test"
+
+var impl tordht.Impl = ipfs.Impl
+
 func main() {
-	ctx, cancelFn := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancelFn()
-	if err := run(ctx); err != nil {
+	if err := run(); err != nil {
 		log.Fatal(err)
 	}
 }
 
-const dataID = "tor-dht-poc-test"
+func run() error {
+	if len(os.Args) < 2 {
+		return fmt.Errorf("Expected 'provide' or 'find' command")
+	} else if cmd, subArgs := os.Args[1], os.Args[2:]; cmd == "provide" {
+		return provide(subArgs)
+	} else if cmd == "find" {
+		return find(subArgs)
+	} else {
+		return fmt.Errorf("Invalid command '%v'", cmd)
+	}
+}
 
-func run(ctx context.Context) error {
+func provide(args []string) error {
 	impl.ApplyDebugLogging()
-	log.Printf("Starting Tor")
+	// We'll give it 2 minutes to startup everything
+	ctx, cancelFn := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancelFn()
+	// Fire up tor
 	bineTor, err := tor.Start(ctx, &tor.StartConf{
 		NoHush:      true,
 		DebugWriter: os.Stdout,
 		DataDir:     "data-dir-temp",
 	})
 	if err != nil {
-		return fmt.Errorf("Failed starting Tor: %v", err)
+		return fmt.Errorf("Failed starting tor: %v", err)
 	}
 	defer bineTor.Close()
-
-	log.Printf("Creating provider")
-	prov, err := impl.NewProvider(ctx, bineTor)
+	// Start DHT
+	dht, err := impl.NewDHT(ctx, &tordht.DHTConf{
+		Tor:     bineTor,
+		Verbose: true,
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed starting DHT: %v", err)
 	}
-	defer prov.Close()
-
-	log.Printf("Creating an ed25519 key pair for provider")
-	keyPair, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return fmt.Errorf("Failed generating key: %v", err)
-	}
-
-	log.Printf("Marking us as a provider for '%v'", dataID)
-	if err = prov.Provide(ctx, []byte(dataID), keyPair.PublicKey()); err != nil {
+	defer dht.Close()
+	// Provide our key
+	if err = dht.Provide(ctx, []byte(dataID)); err != nil {
 		return fmt.Errorf("Failed providing: %v", err)
 	}
-
-	log.Printf("Waiting 5 seconds")
-	time.Sleep(5 * time.Second)
-	return fmt.Errorf("TODO: the rest")
+	// Wait for key press...
+	fmt.Printf("Press enter to quit...")
+	_, err = fmt.Scanln()
+	return err
 }
 
-var impl tordht.Impl = ipfs.Impl
+func find(args []string) error {
+	panic("TODO")
+}
