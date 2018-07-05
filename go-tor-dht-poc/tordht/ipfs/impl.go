@@ -62,18 +62,12 @@ func (impl) NewDHT(ctx context.Context, conf *tordht.DHTConf) (tordht.DHT, error
 	t.debugf("Creating routed host")
 	t.ipfsHost = routed.Wrap(t.ipfsHost, t.ipfsDHT)
 
-	// Connect to at least 3 (or total count if fewer than 3) peers or just add ourself
+	// Connect to at least 3 (or total count if fewer than 3)
 	if len(conf.BootstrapPeers) > 0 {
 		if err = t.connectPeers(ctx, conf.BootstrapPeers, 3); err != nil {
 			return nil, fmt.Errorf("Failed connecting to peers: %v", err)
 		}
 	}
-	// else if len(conf.BootstrapPeers) == 0 && !conf.ClientOnly {
-	// 	t.debugf("No peers so adding myself to peer list")
-	// 	if _, err = t.addPeer(t.peerInfo); err != nil {
-	// 		return nil, fmt.Errorf("Failed adding self as peer: %v", err)
-	// 	}
-	// }
 
 	// Bootstrap the DHT
 	t.debugf("Bootstrapping DHT")

@@ -10,6 +10,7 @@ import (
 	"github.com/cretz/tor-dht-poc/go-tor-dht-poc/tordht"
 	host "github.com/libp2p/go-libp2p-host"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
+	peer "github.com/libp2p/go-libp2p-peer"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 
 	ma "github.com/multiformats/go-multiaddr"
@@ -43,17 +44,30 @@ func (t *torDHT) Close() (err error) {
 func (t *torDHT) PeerInfo() *tordht.PeerInfo { return t.peerInfo }
 
 func (t *torDHT) Provide(ctx context.Context, id []byte) error {
-	if hash, err := multihash.Sum(id, multihash.SHA3_256, -1); err != nil {
-		return fmt.Errorf("Failed hashing ID: %v", err)
+	if cid, err := t.hashedCID(id); err != nil {
+		return err
 	} else {
-		c := cid.NewCidV1(0, hash)
-		t.debugf("Providing CID: %v", c)
-		return t.ipfsDHT.Provide(ctx, c, true)
+		t.debugf("Providing CID: %v", cid)
+		return t.ipfsDHT.Provide(ctx, cid, true)
 	}
 }
 
 func (t *torDHT) FindProviders(ctx context.Context, id []byte, maxCount int) ([]*tordht.PeerInfo, error) {
-	panic("TODO")
+	cid, err := t.hashedCID(id)
+	if err != nil {
+		return nil, err
+	}
+	t.debugf("Finding providers for CID: %v", cid)
+	ret := []*tordht.PeerInfo{}
+	for p := range t.ipfsDHT.FindProvidersAsync(ctx, cid, maxCount) {
+		if info, err := t.makePeerInfo(p.ID, p.Addrs[0]); err != nil {
+			// TODO: warn instead?
+			return nil, fmt.Errorf("Failed parsing '%v': %v", p, err)
+		} else {
+			ret = append(ret, info)
+		}
+	}
+	return ret, ctx.Err()
 }
 
 func (t *torDHT) debugf(format string, args ...interface{}) {
@@ -62,23 +76,40 @@ func (t *torDHT) debugf(format string, args ...interface{}) {
 	}
 }
 
+func (t *torDHT) hashedCID(v []byte) (*cid.Cid, error) {
+	if hash, err := multihash.Sum(v, multihash.SHA3_256, -1); err != nil {
+		return nil, fmt.Errorf("Failed hashing ID: %v", err)
+	} else {
+		return cid.NewCidV1(0, hash), nil
+	}
+}
+
 func (t *torDHT) applyPeerInfo() error {
-	t.peerInfo = &tordht.PeerInfo{ID: t.ipfsHost.ID().Pretty()}
 	if listenAddrs := t.ipfsHost.Network().ListenAddresses(); len(listenAddrs) > 1 {
 		return fmt.Errorf("Expected at most 1 listen onion address, got %v", listenAddrs)
 	} else if len(listenAddrs) == 0 {
 		// no addr
 		return nil
-	} else if onionAddrStr, err := listenAddrs[0].ValueForProtocol(ma.P_ONION); err != nil {
-		return fmt.Errorf("Failed getting onion info from %v: %v", listenAddrs[0], err)
-	} else if id, portStr, ok := torutil.PartitionString(onionAddrStr, ':'); !ok {
-		return fmt.Errorf("Missing port on %v", onionAddrStr)
-	} else if port, portErr := strconv.Atoi(portStr); portErr != nil {
-		return fmt.Errorf("Invalid port '%v': %v", portStr, portErr)
+	} else if info, err := t.makePeerInfo(t.ipfsHost.ID(), listenAddrs[0]); err != nil {
+		return err
 	} else {
-		t.peerInfo.OnionServiceID = id
-		t.peerInfo.OnionPort = port
+		t.peerInfo = info
 		return nil
+	}
+}
+
+func (t *torDHT) makePeerInfo(id peer.ID, addr ma.Multiaddr) (*tordht.PeerInfo, error) {
+	ret := &tordht.PeerInfo{ID: id.Pretty()}
+	if onionAddrStr, err := addr.ValueForProtocol(ma.P_ONION); err != nil {
+		return nil, fmt.Errorf("Failed getting onion info from %v: %v", addr, err)
+	} else if id, portStr, ok := torutil.PartitionString(onionAddrStr, ':'); !ok {
+		return nil, fmt.Errorf("Missing port on %v", onionAddrStr)
+	} else if port, portErr := strconv.Atoi(portStr); portErr != nil {
+		return nil, fmt.Errorf("Invalid port '%v': %v", portStr, portErr)
+	} else {
+		ret.OnionServiceID = id
+		ret.OnionPort = port
+		return ret, nil
 	}
 }
 

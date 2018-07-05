@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/cretz/bine/tor"
 	"github.com/cretz/tor-dht-poc/go-tor-dht-poc/tordht"
@@ -13,8 +12,8 @@ import (
 )
 
 // Change to true to see lots of logs
-const debug = true
-const participatingPeerCount = 5
+const debug = false
+const participatingPeerCount = 3
 const dataID = "tor-dht-poc-test"
 
 var impl tordht.Impl = ipfs.Impl
@@ -38,24 +37,21 @@ func run() error {
 }
 
 func provide(args []string) error {
-	// We'll give it 2 minutes to startup everything
-	ctx, cancelFn := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancelFn()
-	// Fire up tor
-	startConf := &tor.StartConf{DataDir: "data-dir-temp"}
-	if debug {
-		impl.ApplyDebugLogging()
-		startConf.NoHush = true
-		startConf.DebugWriter = os.Stderr
+	if len(args) > 0 {
+		return fmt.Errorf("No args accepted for 'provide' currently")
 	}
-	bineTor, err := tor.Start(ctx, startConf)
+	ctx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
+
+	// Fire up tor
+	bineTor, err := startTor(ctx, "data-dir-temp-provide")
 	if err != nil {
 		return fmt.Errorf("Failed starting tor: %v", err)
 	}
 	defer bineTor.Close()
 
 	// Make multiple DHTs, passing the known set to the other ones for connecting
-	fmt.Printf("Creating %v peers\n", participatingPeerCount)
+	log.Printf("Creating %v peers", participatingPeerCount)
 	dhts := make([]tordht.DHT, participatingPeerCount)
 	prevPeers := []*tordht.PeerInfo{}
 	for i := 0; i < len(dhts); i++ {
@@ -73,25 +69,72 @@ func provide(args []string) error {
 		defer dht.Close()
 		dhts[i] = dht
 		prevPeers = append(prevPeers, dht.PeerInfo())
-		fmt.Printf("Created peer #%v: %v\n", i+1, dht.PeerInfo())
+		log.Printf("Created peer #%v: %v\n", i+1, dht.PeerInfo())
 	}
 
 	// Have a couple provide our key
-	fmt.Printf("Providing key on the first one (%v)\n", dhts[0].PeerInfo())
+	log.Printf("Providing key on the first one (%v)\n", dhts[0].PeerInfo())
 	if err = dhts[0].Provide(ctx, []byte(dataID)); err != nil {
 		return fmt.Errorf("Failed providing on first: %v", err)
 	}
-	fmt.Printf("Providing key on the last one (%v)\n", dhts[len(dhts)-1].PeerInfo())
+	log.Printf("Providing key on the last one (%v)\n", dhts[len(dhts)-1].PeerInfo())
 	if err = dhts[len(dhts)-1].Provide(ctx, []byte(dataID)); err != nil {
 		return fmt.Errorf("Failed providing on last: %v", err)
 	}
 
 	// Wait for key press...
-	fmt.Printf("Press enter to quit...\n")
+	log.Printf("Press enter to quit...\n")
 	_, err = fmt.Scanln()
 	return err
 }
 
 func find(args []string) error {
-	panic("TODO")
+	ctx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
+
+	// Get all the peers from the args
+	var err error
+	dhtConf := &tordht.DHTConf{
+		ClientOnly:     true,
+		Verbose:        debug,
+		BootstrapPeers: make([]*tordht.PeerInfo, len(args)),
+	}
+	for i := 0; i < len(args); i++ {
+		if dhtConf.BootstrapPeers[i], err = tordht.NewPeerInfo(args[i]); err != nil {
+			return fmt.Errorf("Failed parsing arg #%v: %v", i+1, err)
+		}
+	}
+
+	// Fire up tor
+	if dhtConf.Tor, err = startTor(ctx, "data-dir-temp-find"); err != nil {
+		return fmt.Errorf("Failed starting tor: %v", err)
+	}
+	defer dhtConf.Tor.Close()
+
+	// Make a client-only DHT
+	log.Printf("Creating DHT and connecting to peers\n")
+	dht, err := impl.NewDHT(ctx, dhtConf)
+	if err != nil {
+		return fmt.Errorf("Failed creating DHT: %v", err)
+	}
+
+	// Now find who is providing the id
+	providers, err := dht.FindProviders(ctx, []byte(dataID), 2)
+	if err != nil {
+		return fmt.Errorf("Failed finding providers: %v", err)
+	}
+	for _, provider := range providers {
+		log.Printf("Found data ID on %v\n", provider)
+	}
+	return nil
+}
+
+func startTor(ctx context.Context, dataDir string) (*tor.Tor, error) {
+	startConf := &tor.StartConf{DataDir: dataDir}
+	if debug {
+		impl.ApplyDebugLogging()
+		startConf.NoHush = true
+		startConf.DebugWriter = os.Stderr
+	}
+	return tor.Start(ctx, startConf)
 }
