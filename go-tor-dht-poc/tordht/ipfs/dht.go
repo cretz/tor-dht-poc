@@ -13,7 +13,9 @@ import (
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 
 	ma "github.com/multiformats/go-multiaddr"
+	multihash "github.com/multiformats/go-multihash"
 
+	cid "github.com/ipfs/go-cid"
 	addr "github.com/ipfs/go-ipfs-addr"
 )
 
@@ -41,7 +43,13 @@ func (t *torDHT) Close() (err error) {
 func (t *torDHT) PeerInfo() *tordht.PeerInfo { return t.peerInfo }
 
 func (t *torDHT) Provide(ctx context.Context, id []byte) error {
-	panic("TODO")
+	if hash, err := multihash.Sum(id, multihash.SHA3_256, -1); err != nil {
+		return fmt.Errorf("Failed hashing ID: %v", err)
+	} else {
+		c := cid.NewCidV1(0, hash)
+		t.debugf("Providing CID: %v", c)
+		return t.ipfsDHT.Provide(ctx, c, true)
+	}
 }
 
 func (t *torDHT) FindProviders(ctx context.Context, id []byte, maxCount int) ([]*tordht.PeerInfo, error) {
@@ -114,13 +122,21 @@ func (t *torDHT) connectPeers(ctx context.Context, peers []*tordht.PeerInfo, min
 }
 
 func (t *torDHT) connectPeer(ctx context.Context, peerInfo *tordht.PeerInfo) error {
-	ipfsAddrStr := fmt.Sprintf("/onion/%v:%v/ipfs/%v", peerInfo.OnionServiceID, peerInfo.OnionPort, peerInfo.ID)
-	if ipfsAddr, err := addr.ParseString(ipfsAddrStr); err != nil {
-		return err
-	} else if peer, err := peerstore.InfoFromP2pAddr(ipfsAddr.Multiaddr()); err != nil {
+	if peer, err := t.addPeer(peerInfo); err != nil {
 		return err
 	} else {
-		t.ipfsHost.Peerstore().AddAddrs(peer.ID, peer.Addrs, peerstore.PermanentAddrTTL)
 		return t.ipfsHost.Connect(ctx, *peer)
+	}
+}
+
+func (t *torDHT) addPeer(peerInfo *tordht.PeerInfo) (*peerstore.PeerInfo, error) {
+	ipfsAddrStr := fmt.Sprintf("/onion/%v:%v/ipfs/%v", peerInfo.OnionServiceID, peerInfo.OnionPort, peerInfo.ID)
+	if ipfsAddr, err := addr.ParseString(ipfsAddrStr); err != nil {
+		return nil, err
+	} else if peer, err := peerstore.InfoFromP2pAddr(ipfsAddr.Multiaddr()); err != nil {
+		return nil, err
+	} else {
+		t.ipfsHost.Peerstore().AddAddrs(peer.ID, peer.Addrs, peerstore.PermanentAddrTTL)
+		return peer, nil
 	}
 }

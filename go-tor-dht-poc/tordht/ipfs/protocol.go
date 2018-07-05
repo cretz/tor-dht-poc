@@ -3,7 +3,6 @@ package ipfs
 import (
 	"encoding/base32"
 	"fmt"
-	"log"
 
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -43,11 +42,11 @@ func init() {
 
 func onionStringToBytes(str string) ([]byte, error) {
 	// Just convert the whole thing for now
-	log.Printf("Asked to convert onion string to bytes: %v", str)
+	// log.Printf("Asked to convert onion string to bytes: %v", str)
 	return []byte(str), nil
 }
 
 func onionBytesToString(byts []byte) (string, error) {
-	log.Printf("Asked to convert onion bytes back to string: %v", string(byts))
+	// log.Printf("Asked to convert onion bytes back to string: %v", string(byts))
 	return string(byts), nil
 }

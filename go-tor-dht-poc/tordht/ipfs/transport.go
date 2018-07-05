@@ -115,17 +115,34 @@ func (t *TorTransport) Listen(laddr ma.Multiaddr) (transport.Listener, error) {
 	// Close it if there is another error in here
 	defer func() {
 		if err != nil {
+			t.bineTor.Debugf("Failed listen after onion creation: %v", err)
 			onion.Close()
 		}
 	}()
 
 	// Return a listener
+	/*
+		var onionAddr, tcpAddr ma.Multiaddr
+		if onionAddr, err = ma.NewMultiaddr(fmt.Sprintf("/onion/%v:%v", onion.ID, onion.RemotePorts[0])); err != nil {
+			return nil, fmt.Errorf("Failed converting onion address: %v", err)
+		} else if tcpAddr, err = manet.FromNetAddr(onion.LocalListener.Addr()); err != nil {
+			return nil, fmt.Errorf("Failed converting net address: %v", err)
+		}
+		// The onion address encapsulates the tcp one
+		manetListen := &manetListener{
+			transport: t,
+			onion:     onion,
+			multiaddr: onionAddr.Encapsulate(tcpAddr),
+		}
+	*/
 	manetListen := &manetListener{transport: t, onion: onion}
-	if manetListen.multiaddr, err = ma.NewMultiaddr(fmt.Sprintf("/onion/%v:%v", onion.ID, onion.RemotePorts[0])); err != nil {
-		t.bineTor.Debugf("Failed converting onion address: %v", err)
-		return nil, err
+	manetListen.multiaddr, err = ma.NewMultiaddr(fmt.Sprintf("/onion/%v:%v", onion.ID, onion.RemotePorts[0]))
+	if err != nil {
+		return nil, fmt.Errorf("Failed converting onion address: %v", err)
 	}
-	t.bineTor.Debugf("Completed creating IPFS listener from onion")
+
+	// Encapsulate the underlying tcp
+	t.bineTor.Debugf("Completed creating IPFS listener from onion, addr: %v", manetListen.multiaddr)
 	return manetListen.Upgrade(t.upgrader), nil
 	// ret := &torListener{addr: onion}
 	// var manetListen manet.Listener
