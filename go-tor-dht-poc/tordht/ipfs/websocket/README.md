@@ -1,0 +1,1 @@
+This was taken from https://github.com/libp2p/go-ws-transport and heavily modified remove ipfs stuff

@@ -37,7 +37,11 @@ func (impl) NewDHT(ctx context.Context, conf *tordht.DHTConf) (tordht.DHT, error
 
 	// Create the host with only the tor transport
 	t.debugf("Creating host")
-	hostOpts := []libp2p.Option{libp2p.Transport(NewTorTransport(conf.Tor, &TorTransportConf{OnlyOnion: true}))}
+	transportConf := &TorTransportConf{
+		OnlyOnion: true,
+		WebSocket: true,
+	}
+	hostOpts := []libp2p.Option{libp2p.Transport(NewTorTransport(conf.Tor, transportConf))}
 	if !conf.ClientOnly {
 		// Add an address to listen to
 		hostOpts = append(hostOpts, libp2p.ListenAddrs(onionListenAddr))
