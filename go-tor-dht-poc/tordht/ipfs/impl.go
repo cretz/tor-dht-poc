@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cretz/tor-dht-poc/go-tor-dht-poc/tordht"
+	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	log "github.com/ipfs/go-log"
@@ -12,17 +13,27 @@ import (
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	opts "github.com/libp2p/go-libp2p-kad-dht/opts"
 	routed "github.com/libp2p/go-libp2p/p2p/host/routed"
+	multihash "github.com/multiformats/go-multihash"
 )
 
 type impl struct{}
 
-var Impl tordht.Impl = impl{}
+var ipfsImpl = impl{}
+var Impl tordht.Impl = ipfsImpl
 
 const minPeersRequired = 2
 
 func (impl) ApplyDebugLogging() {
 	log.SetDebugLogging()
 	// log.SetAllLoggers(logging.INFO)
+}
+
+func (impl) RawStringDataID(id []byte) (string, error) {
+	if raw, err := ipfsImpl.hashedCID(id); err != nil {
+		return "", err
+	} else {
+		return raw.String(), nil
+	}
 }
 
 func (impl) NewDHT(ctx context.Context, conf *tordht.DHTConf) (tordht.DHT, error) {
@@ -41,7 +52,10 @@ func (impl) NewDHT(ctx context.Context, conf *tordht.DHTConf) (tordht.DHT, error
 		OnlyOnion: true,
 		WebSocket: true,
 	}
-	hostOpts := []libp2p.Option{libp2p.Transport(NewTorTransport(conf.Tor, transportConf))}
+	hostOpts := []libp2p.Option{
+		// libp2p.NoSecurity,
+		libp2p.Transport(NewTorTransport(conf.Tor, transportConf)),
+	}
 	if !conf.ClientOnly {
 		// Add an address to listen to
 		hostOpts = append(hostOpts, libp2p.ListenAddrs(onionListenAddr))
@@ -81,4 +95,12 @@ func (impl) NewDHT(ctx context.Context, conf *tordht.DHTConf) (tordht.DHT, error
 		return nil, fmt.Errorf("Failed boostrapping DHT: %v", err)
 	}
 	return t, nil
+}
+
+func (impl) hashedCID(v []byte) (*cid.Cid, error) {
+	if hash, err := multihash.Sum(v, multihash.SHA3_256, -1); err != nil {
+		return nil, fmt.Errorf("Failed hashing ID: %v", err)
+	} else {
+		return cid.NewCidV1(0, hash), nil
+	}
 }

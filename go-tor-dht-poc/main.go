@@ -31,6 +31,8 @@ func run() error {
 		return provide(subArgs)
 	} else if cmd == "find" {
 		return find(subArgs)
+	} else if cmd == "rawid" {
+		return rawid(subArgs)
 	} else {
 		return fmt.Errorf("Invalid command '%v'", cmd)
 	}
@@ -137,4 +139,16 @@ func startTor(ctx context.Context, dataDir string) (*tor.Tor, error) {
 		startConf.DebugWriter = os.Stderr
 	}
 	return tor.Start(ctx, startConf)
+}
+
+func rawid(args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("No args accepted for 'rawid' currently")
+	}
+	str, err := impl.RawStringDataID([]byte(dataID))
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Raw string ID: %v\n", str)
+	return nil
 }

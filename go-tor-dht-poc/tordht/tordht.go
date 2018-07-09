@@ -13,6 +13,7 @@ import (
 
 type Impl interface {
 	ApplyDebugLogging()
+	RawStringDataID(id []byte) (string, error)
 	NewDHT(ctx context.Context, conf *DHTConf) (DHT, error)
 }
 

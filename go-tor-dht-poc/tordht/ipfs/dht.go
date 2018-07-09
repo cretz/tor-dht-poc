@@ -16,9 +16,7 @@ import (
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 
 	ma "github.com/multiformats/go-multiaddr"
-	multihash "github.com/multiformats/go-multihash"
 
-	cid "github.com/ipfs/go-cid"
 	addr "github.com/ipfs/go-ipfs-addr"
 )
 
@@ -46,7 +44,7 @@ func (t *torDHT) Close() (err error) {
 func (t *torDHT) PeerInfo() *tordht.PeerInfo { return t.peerInfo }
 
 func (t *torDHT) Provide(ctx context.Context, id []byte) error {
-	if cid, err := t.hashedCID(id); err != nil {
+	if cid, err := ipfsImpl.hashedCID(id); err != nil {
 		return err
 	} else {
 		t.debugf("Providing CID: %v", cid)
@@ -55,7 +53,7 @@ func (t *torDHT) Provide(ctx context.Context, id []byte) error {
 }
 
 func (t *torDHT) FindProviders(ctx context.Context, id []byte, maxCount int) ([]*tordht.PeerInfo, error) {
-	cid, err := t.hashedCID(id)
+	cid, err := ipfsImpl.hashedCID(id)
 	if err != nil {
 		return nil, err
 	}
@@ -75,14 +73,6 @@ func (t *torDHT) FindProviders(ctx context.Context, id []byte, maxCount int) ([]
 func (t *torDHT) debugf(format string, args ...interface{}) {
 	if t.debug {
 		log.Printf("[DEBUG] "+format, args...)
-	}
-}
-
-func (t *torDHT) hashedCID(v []byte) (*cid.Cid, error) {
-	if hash, err := multihash.Sum(v, multihash.SHA3_256, -1); err != nil {
-		return nil, fmt.Errorf("Failed hashing ID: %v", err)
-	} else {
-		return cid.NewCidV1(0, hash), nil
 	}
 }
 
