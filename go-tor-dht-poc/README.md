@@ -1,7 +1,7 @@
 ## Go + Tor + DHT Proof of Concept
 
 This is a proof of concept showing how to build a DHT over Tor with v3 onion services. This was accomplished with the
-Tor client library [bine](https://github.com/cretz/bine) and [libp2p](https://github.com/libp2p/go-libp2p)
+Tor client library [bine](https://github.com/cretz/bine) and [go-libp2p](https://github.com/libp2p/go-libp2p)
 (specifically the [DHT lib](https://github.com/libp2p/go-libp2p-kad-dht)).
 
 Basically, the goal was to be able to build an onion service, connect to onion service peers, and once a DHT is formed,
