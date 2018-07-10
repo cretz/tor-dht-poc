@@ -2,8 +2,13 @@
 <html>
     <head>
         <title>Onion DHT Test</title>
-    </head>
-    <body>
         <script src="index.js"></script>
+    </head>
+    <body onload="tordhtpoc.bodyOnLoad()">
+        Enter any DHT peer and click button to find specific providers:
+        <input id="text-peer" placeholder="Peer" type="text" style="width: 100%">
+        <input id="button-find" type="button" value="Find Providers">
+        <hr />
+        <span id="find-results"></span>
     </body>
 </html>
