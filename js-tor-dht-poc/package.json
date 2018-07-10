@@ -5,14 +5,12 @@
   "main": "index.js",
   "scripts": {
     "browserify": "browserify index.js -o public/index.js",
-    "uglify": "uglifyjs public/index.js -o public/index.js -c -m",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "browserify": "^16.2.2",
-    "uglify-es": "^3.3.9"
+    "browserify": "^16.2.2"
   },
   "dependencies": {
     "cids": "^0.5.3",

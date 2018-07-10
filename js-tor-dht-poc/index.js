@@ -100,13 +100,13 @@ if (!window.tordhtpoc) window.tordhtpoc = (function() {
           if (!origCallback) return
           const cb = origCallback
           origCallback = null
+          node.stop(() => {})
+          if (err) return cb(err)
           const peerAddrs = peers.map(peer => {
             const addrArray = peer.multiaddrs.toArray()
             if (addrArray.length == 0) return '<unknown-address>/' + peer.id.toB58String()
             return ipfsAddressToPeer(peer.id.toB58String(), peer.multiaddrs.toArray()[0])
           })
-          node.stop(() => {})
-          if (err) return cb(err)
           cb(null, peerAddrs)
         }
         
