@@ -14,6 +14,7 @@ import (
 	opts "github.com/libp2p/go-libp2p-kad-dht/opts"
 	routed "github.com/libp2p/go-libp2p/p2p/host/routed"
 	multihash "github.com/multiformats/go-multihash"
+	mplex "github.com/whyrusleeping/go-smux-multiplex"
 )
 
 type impl struct{}
@@ -49,11 +50,11 @@ func (impl) NewDHT(ctx context.Context, conf *tordht.DHTConf) (tordht.DHT, error
 	// Create the host with only the tor transport
 	t.debugf("Creating host")
 	transportConf := &TorTransportConf{
-		OnlyOnion: true,
 		WebSocket: true,
 	}
 	hostOpts := []libp2p.Option{
 		// libp2p.NoSecurity,
+		libp2p.Muxer("/mplex/6.7.0", mplex.DefaultTransport),
 		libp2p.Transport(NewTorTransport(conf.Tor, transportConf)),
 	}
 	if !conf.ClientOnly {

@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/cretz/bine/tor"
-	"github.com/cretz/bine/torutil"
 	"github.com/cretz/tor-dht-poc/go-tor-dht-poc/tordht"
 	host "github.com/libp2p/go-libp2p-host"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
@@ -92,17 +90,11 @@ func (t *torDHT) applyPeerInfo() error {
 
 func (t *torDHT) makePeerInfo(id peer.ID, addr ma.Multiaddr) (*tordht.PeerInfo, error) {
 	ret := &tordht.PeerInfo{ID: id.Pretty()}
-	if onionAddrStr, err := addr.ValueForProtocol(ma.P_ONION); err != nil {
-		return nil, fmt.Errorf("Failed getting onion info from %v: %v", addr, err)
-	} else if id, portStr, ok := torutil.PartitionString(onionAddrStr, ':'); !ok {
-		return nil, fmt.Errorf("Missing port on %v", onionAddrStr)
-	} else if port, portErr := strconv.Atoi(portStr); portErr != nil {
-		return nil, fmt.Errorf("Invalid port '%v': %v", portStr, portErr)
-	} else {
-		ret.OnionServiceID = id
-		ret.OnionPort = port
-		return ret, nil
+	var err error
+	if ret.OnionServiceID, ret.OnionPort, err = defaultAddrFormat.onionInfo(addr); err != nil {
+		return nil, err
 	}
+	return ret, nil
 }
 
 func (t *torDHT) connectPeers(ctx context.Context, peers []*tordht.PeerInfo, minRequired int) error {
@@ -159,7 +151,8 @@ func (t *torDHT) connectPeer(ctx context.Context, peerInfo *tordht.PeerInfo) err
 }
 
 func (t *torDHT) addPeer(peerInfo *tordht.PeerInfo) (*peerstore.PeerInfo, error) {
-	ipfsAddrStr := fmt.Sprintf("/onion/%v:%v/ipfs/%v", peerInfo.OnionServiceID, peerInfo.OnionPort, peerInfo.ID)
+	ipfsAddrStr := fmt.Sprintf("%v/ws/ipfs/%v",
+		defaultAddrFormat.onionAddr(peerInfo.OnionServiceID, peerInfo.OnionPort), peerInfo.ID)
 	if ipfsAddr, err := addr.ParseString(ipfsAddrStr); err != nil {
 		return nil, err
 	} else if peer, err := peerstore.InfoFromP2pAddr(ipfsAddr.Multiaddr()); err != nil {

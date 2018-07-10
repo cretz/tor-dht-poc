@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cretz/bine/torutil"
 	"github.com/cretz/tor-dht-poc/go-tor-dht-poc/tordht/ipfs/websocket"
 	gorillaws "github.com/gorilla/websocket"
 
@@ -36,7 +35,6 @@ type TorTransport struct {
 
 type TorTransportConf struct {
 	DialConf  *tor.DialConf
-	OnlyOnion bool
 	WebSocket bool
 }
 
@@ -57,27 +55,11 @@ func NewTorTransport(bineTor *tor.Tor, conf *TorTransportConf) func(*upgrader.Up
 
 func (t *TorTransport) Dial(ctx context.Context, raddr ma.Multiaddr, p peer.ID) (transport.Conn, error) {
 	t.bineTor.Debugf("For peer ID %v, dialing %v", p, raddr)
-	var network, addr string
-	// Try net addr first
-	if !t.conf.OnlyOnion {
-		if netAddr, err := manet.ToNetAddr(raddr); err == nil {
-			network, addr = netAddr.Network(), netAddr.String()
-		} else {
-			t.bineTor.Debugf("Invalid net address trying onion address: %v", err)
-		}
-	}
-	// Now onion addr
-	if network == "" {
-		if onionAddress, err := raddr.ValueForProtocol(ma.P_ONION); err != nil {
-			return nil, fmt.Errorf("Invalid onion or net address: %v", err)
-		} else {
-			host, port, _ := torutil.PartitionString(onionAddress, ':')
-			network = "tcp4"
-			addr = host + ".onion"
-			if port != "" {
-				addr += ":" + port
-			}
-		}
+	var addr string
+	if onionID, port, err := defaultAddrFormat.onionInfo(raddr); err != nil {
+		return nil, err
+	} else {
+		addr = fmt.Sprintf("%v.onion:%v", onionID, port)
 	}
 	// Init the dialers
 	if err := t.initDialers(ctx); err != nil {
@@ -96,7 +78,7 @@ func (t *TorTransport) Dial(ctx context.Context, raddr ma.Multiaddr, p peer.ID) 
 		netConn = websocket.NewConn(wsConn, nil)
 	} else {
 		var err error
-		if netConn, err = t.torDialer.DialContext(ctx, network, addr); err != nil {
+		if netConn, err = t.torDialer.DialContext(ctx, "tcp", addr); err != nil {
 			t.bineTor.Debugf("Failed dialing: %v", err)
 			return nil, err
 		}
@@ -137,10 +119,8 @@ func (t *TorTransport) initDialers(ctx context.Context) error {
 
 func (t *TorTransport) CanDial(addr ma.Multiaddr) bool {
 	t.bineTor.Debugf("Checking if can dial %v", addr)
-	if t.conf.OnlyOnion {
-		return OnionMultiaddrFormat.Matches(addr)
-	}
-	return TorMultiaddrFormat.Matches(addr)
+	_, _, err := defaultAddrFormat.onionInfo(addr)
+	return err == nil
 }
 
 func (t *TorTransport) Listen(laddr ma.Multiaddr) (transport.Listener, error) {
@@ -171,8 +151,11 @@ func (t *TorTransport) Listen(laddr ma.Multiaddr) (transport.Listener, error) {
 
 	// Return a listener
 	manetListen := &manetListener{transport: t, onion: onion, listener: onion}
-	manetListen.multiaddr, err = ma.NewMultiaddr(fmt.Sprintf("/onion/%v:%v", onion.ID, onion.RemotePorts[0]))
-	if err != nil {
+	addrStr := defaultAddrFormat.onionAddr(onion.ID, onion.RemotePorts[0])
+	if t.conf.WebSocket {
+		addrStr += "/ws"
+	}
+	if manetListen.multiaddr, err = ma.NewMultiaddr(addrStr); err != nil {
 		return nil, fmt.Errorf("Failed converting onion address: %v", err)
 	}
 	// If it had websocket, we need to delegate to that
@@ -182,7 +165,6 @@ func (t *TorTransport) Listen(laddr ma.Multiaddr) (transport.Listener, error) {
 		}
 	}
 
-	// Encapsulate the underlying tcp
 	t.bineTor.Debugf("Completed creating IPFS listener from onion, addr: %v", manetListen.multiaddr)
 	return manetListen.Upgrade(t.upgrader), nil
 }
