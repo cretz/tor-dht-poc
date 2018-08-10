@@ -13,9 +13,9 @@ var onionListenAddr ma.Multiaddr
 const ONION_LISTEN_PROTO_CODE = 0x55
 
 var onionListenProto = ma.Protocol{
-	ONION_LISTEN_PROTO_CODE, 0, "onionListen", ma.CodeToVarint(ONION_LISTEN_PROTO_CODE), false, nil}
+	"onionListen", ONION_LISTEN_PROTO_CODE, ma.CodeToVarint(ONION_LISTEN_PROTO_CODE), 0, false, nil}
 
-var onionProto = ma.Protocol{ma.P_ONION, ma.LengthPrefixedVarSize, "onion", ma.CodeToVarint(ma.P_ONION), false,
+var onionProto = ma.Protocol{"onion", ma.P_ONION, ma.CodeToVarint(ma.P_ONION), ma.LengthPrefixedVarSize, false,
 	ma.NewTranscoderFromFunctions(onionStringToBytes, onionBytesToString, nil)}
 
 func init() {
@@ -30,7 +30,7 @@ func init() {
 	for i, p := range ma.Protocols {
 		if p.Code == ma.P_ONION {
 			ma.Protocols[i] = onionProto
-			ma.ProtocolsByName[onionProto.Name] = onionProto
+			//ma.ProtocolsByName[onionProto.Name] = onionProto
 			break
 		}
 	}
