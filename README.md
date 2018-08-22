@@ -56,7 +56,7 @@ After a sec, here's the output:
 
 Now let's connect to this DHT from the Tor browser and find them that way. With the DHT "provide" still running,
 navigate to `js-tor-dht-poc`. Run `npm install` to install dependencies and to prepare `index.js` for use at
-`public/index.js`, run `npm browserify`. This makes a fairly large JS file that our page uses. Now, to start the web
+`public/index.js`, run `npm run browserify`. This makes a fairly large JS file that our page uses. Now, to start the web
 server, build and run the executable via:
 
     go build && js-tor-dht-poc

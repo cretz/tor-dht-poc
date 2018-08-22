@@ -13,24 +13,21 @@ var onionListenAddr ma.Multiaddr
 const ONION_LISTEN_PROTO_CODE = 0x55
 
 var onionListenProto = ma.Protocol{
-	ONION_LISTEN_PROTO_CODE, 0, "onionListen", ma.CodeToVarint(ONION_LISTEN_PROTO_CODE), false, nil}
-
-var onionProto = ma.Protocol{ma.P_ONION, ma.LengthPrefixedVarSize, "onion", ma.CodeToVarint(ma.P_ONION), false,
-	ma.NewTranscoderFromFunctions(onionStringToBytes, onionBytesToString, nil)}
+	"onionListen", ONION_LISTEN_PROTO_CODE, ma.CodeToVarint(ONION_LISTEN_PROTO_CODE), 0, false, nil}
 
 func init() {
-	var err error
-	if err = ma.AddProtocol(onionListenProto); err != nil {
+	// Add the listen protocol
+	if err := ma.AddProtocol(onionListenProto); err != nil {
 		panic(fmt.Errorf("Failed adding onionListen protocol: %v", err))
 	} else if onionListenAddr, err = ma.NewMultiaddr("/onionListen"); err != nil {
 		panic(fmt.Errorf("Failed creating onionListen addr: %v", err))
 	}
-	// Replace the existing onion protocol with one that is more lenient
-	ma.TranscoderOnion = onionProto.Transcoder
-	for i, p := range ma.Protocols {
+	// Change existing onion protocol to support v3 and be more lenient when transcoding
+	ma.TranscoderOnion = ma.NewTranscoderFromFunctions(onionStringToBytes, onionBytesToString, nil)
+	for _, p := range ma.Protocols {
 		if p.Code == ma.P_ONION {
-			ma.Protocols[i] = onionProto
-			ma.ProtocolsByName[onionProto.Name] = onionProto
+			p.Size = ma.LengthPrefixedVarSize
+			p.Transcoder = ma.TranscoderOnion
 			break
 		}
 	}
